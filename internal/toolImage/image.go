@@ -173,46 +173,41 @@ func ReadToolSpec(ctx context.Context, imageName string) (toolspec.SpecFile, err
 }
 
 func readToolSpec(ctx context.Context, c *client.Client, imageName string) (toolspec.SpecFile, error) {
-	cont, err := c.ContainerCreate(ctx, &container.Config{
-		Image:      imageName,
-		Entrypoint: []string{"cat"},
-		Cmd:        []string{"/src/tool.yml"},
-	}, &container.HostConfig{}, nil, nil, "")
+	gotapPath, gotapFound, err := ProbeGotap(ctx, c, imageName)
 	if err != nil {
 		return toolspec.SpecFile{}, err
 	}
-	defer c.ContainerRemove(ctx, cont.ID, container.RemoveOptions{})
 
-	if err = c.ContainerStart(ctx, cont.ID, container.StartOptions{}); err != nil {
-		return toolspec.SpecFile{}, err
+	if gotapFound {
+		commands := [][]string{
+			{gotapPath, "metadata", "--spec-file", "/src/tool.yml"},
+			{gotapPath, "parse", "--spec-file", "/src/tool.yml"},
+			{gotapPath, "parse", "/src/tool.yml"},
+		}
+		for _, cmd := range commands {
+			stdout, _, exitCode, cmdErr := runContainerCommand(ctx, c, imageName, []string{cmd[0]}, cmd[1:])
+			if cmdErr != nil || exitCode != 0 || strings.TrimSpace(stdout) == "" {
+				continue
+			}
+			spec, parseErr := toolspec.LoadToolSpec([]byte(stdout))
+			if parseErr == nil {
+				return spec, nil
+			}
+		}
 	}
 
-	statusCh, errCh := c.ContainerWait(ctx, cont.ID, container.WaitConditionNotRunning)
-	select {
-	case err := <-errCh:
-		return toolspec.SpecFile{}, err
-	case <-statusCh:
-	}
-
-	logReader, err := c.ContainerLogs(ctx, cont.ID, container.LogsOptions{ShowStdout: true, ShowStderr: true})
+	stdout, stderr, exitCode, err := runContainerCommand(ctx, c, imageName, []string{"cat"}, []string{"/src/tool.yml"})
 	if err != nil {
 		return toolspec.SpecFile{}, err
 	}
-	defer logReader.Close()
-
-	stdout := new(bytes.Buffer)
-	stderr := new(bytes.Buffer)
-	stdcopy.StdCopy(stdout, stderr, logReader)
-
-	if stderr.Len() != 0 {
-		return toolspec.SpecFile{}, fmt.Errorf("the container errored while identifying the tool spec: %v", stderr.String())
+	if exitCode != 0 {
+		return toolspec.SpecFile{}, fmt.Errorf("the container errored while identifying the tool spec: %v", strings.TrimSpace(stderr))
 	}
-	if stdout.Len() == 0 {
+	if strings.TrimSpace(stdout) == "" {
 		return toolspec.SpecFile{}, fmt.Errorf("the container did not respond")
 	}
-	out := stdout.Bytes()
 
-	spec, err := toolspec.LoadToolSpec(out)
+	spec, err := toolspec.LoadToolSpec([]byte(stdout))
 	if err != nil {
 		return toolspec.SpecFile{}, fmt.Errorf("the container %s did not contain a valid tool-spec at /src/tool.yml: %v", imageName, err)
 	}

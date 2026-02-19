@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"net/http"
 	"os"
@@ -17,6 +18,11 @@ type RunsResponse struct {
 	Count  int         `json:"count"`
 	Status string      `json:"status"`
 	Runs   []tool.Tool `json:"runs"`
+}
+
+type RunDetailResponse struct {
+	tool.Tool
+	GotapMetadata interface{} `json:"gotap_metadata,omitempty"`
 }
 
 func GetAllRuns(w http.ResponseWriter, r *http.Request) {
@@ -109,7 +115,33 @@ func DeleteRun(w http.ResponseWriter, r *http.Request, tool tool.Tool) {
 }
 
 func GetRunStatus(w http.ResponseWriter, r *http.Request, run tool.Tool) {
-	RespondWithJSON(w, http.StatusOK, run)
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		RespondWithError(w, http.StatusUnauthorized, "User ID is required")
+		return
+	}
+	DB := viper.Get("db").(*db.Queries)
+
+	dbRun, err := DB.GetRun(r.Context(), db.GetRunParams{
+		ID:     run.ID,
+		UserID: userID,
+	})
+	if err != nil {
+		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	resp := RunDetailResponse{Tool: run}
+	if dbRun.GotapMetadata.Valid {
+		var metadata interface{}
+		if err := json.Unmarshal([]byte(dbRun.GotapMetadata.String), &metadata); err != nil {
+			log.Printf("failed parsing gotap metadata for run %d: %v", run.ID, err)
+		} else {
+			resp.GotapMetadata = metadata
+		}
+	}
+
+	RespondWithJSON(w, http.StatusOK, resp)
 }
 
 func HandleRunStart(w http.ResponseWriter, r *http.Request, run tool.Tool) {
