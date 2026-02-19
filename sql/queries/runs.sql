@@ -36,6 +36,11 @@ UPDATE runs SET status = 'errored', error_message = ?, finished_at = datetime('n
 WHERE runs.id = ?
 RETURNING *;
 
+-- name: SetRunGotapMetadata :one
+UPDATE runs SET gotap_metadata = ?
+WHERE runs.id = ?
+RETURNING *;
+
 -- name: GetAllRuns :many
 SELECT r.* FROM runs r
 WHERE (SELECT u.is_admin FROM users u WHERE u.id = ?) = TRUE 

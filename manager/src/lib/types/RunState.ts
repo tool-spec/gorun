@@ -18,5 +18,6 @@ export interface RunState {
     started_at?: Date,
     finished_at?: Date,
     has_errored: boolean,
-    error_message?: string
+    error_message?: string,
+    gotap_metadata?: Record<string, unknown>
 }
