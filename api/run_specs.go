@@ -2,16 +2,12 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strconv"
 
-	"github.com/hydrocode-de/gorun/internal/cache"
 	"github.com/hydrocode-de/gorun/internal/db"
+	"github.com/hydrocode-de/gorun/internal/service"
 	"github.com/hydrocode-de/gorun/internal/tool"
 	toolspec "github.com/hydrocode-de/tool-spec-go"
-	"github.com/hydrocode-de/tool-spec-go/validate"
-	"github.com/spf13/viper"
 )
 
 type ListToolSpecResponse struct {
@@ -33,22 +29,9 @@ func RunMiddleware(handler func(http.ResponseWriter, *http.Request, tool.Tool)) 
 			RespondWithError(w, http.StatusUnauthorized, "User ID is required")
 			return
 		}
-		DB := viper.Get("db").(*db.Queries)
+		DB := getService().DB
 
-		idPath := r.PathValue("id")
-		if idPath == "" {
-			RespondWithError(w, http.StatusBadRequest, "missing run id")
-			return
-		}
-		id, err := strconv.ParseInt(idPath, 10, 64)
-		if err != nil {
-			RespondWithError(w, http.StatusBadRequest, fmt.Sprintf("the passed run id is not a valid integer: %v", err))
-		}
-
-		run, err := DB.GetRun(r.Context(), db.GetRunParams{
-			ID:     id,
-			UserID: user_id,
-		})
+		run, err := runFromRequest(r.Context(), r, DB, user_id)
 		if err != nil {
 			RespondWithError(w, http.StatusNotFound, err.Error())
 			return
@@ -67,19 +50,21 @@ func GetToolSpec(w http.ResponseWriter, r *http.Request) {
 	toolName := r.PathValue("toolname")
 	if toolName == "" {
 		RespondWithError(w, http.StatusNotFound, "missing tool name")
+		return
 	}
 
-	Cache := viper.Get("cache").(*cache.Cache)
-	spec, wasFound := Cache.GetToolSpec(toolName)
-	if !wasFound {
+	svc := getService()
+	spec, err := svc.GetToolSpec(toolName)
+	if err != nil {
 		RespondWithError(w, http.StatusNotFound, "tool not found")
+		return
 	}
 	RespondWithJSON(w, http.StatusOK, spec)
 }
 
 func ListToolSpecs(w http.ResponseWriter, r *http.Request) {
-	Cache := viper.Get("cache").(*cache.Cache)
-	specs := Cache.ListToolSpecs()
+	svc := getService()
+	specs := svc.ListToolSpecs(r.URL.Query().Get("filter"))
 
 	RespondWithJSON(w, http.StatusOK, ListToolSpecResponse{
 		Count: len(specs),
@@ -101,35 +86,33 @@ func CreateRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	Cache := viper.Get("cache").(*cache.Cache)
-	toolSlug := fmt.Sprintf("%s::%s", payload.DockerImage, payload.ToolName)
-	toolSpec, wasFound := Cache.GetToolSpec(toolSlug)
-	if !wasFound {
-		RespondWithError(w, http.StatusNotFound, fmt.Sprintf("a tool %s was not found in the cache", toolSlug))
-		return
-	}
-	hasErrors, errs := validate.ValidateInputs(*toolSpec, toolspec.ToolInput{
-		Parameters: payload.Parameters,
-		Datasets:   payload.DataPaths,
+	svc := getService()
+	runTool, err := svc.ValidateAndCreateRun(r.Context(), user_id, service.CreateRunInput{
+		ToolName:    payload.ToolName,
+		DockerImage: payload.DockerImage,
+		Parameters:  payload.Parameters,
+		DataPaths:   payload.DataPaths,
 	})
-	if hasErrors {
-		RespondWithJSON(w, http.StatusBadRequest, map[string]interface{}{
-			"message": fmt.Sprintf("the provided payload is invalid for the tool %s", toolSlug),
-			"errors":  errs,
-		})
+	if err != nil {
+		if ve, ok := service.IsValidationError(err); ok {
+			RespondWithJSON(w, http.StatusBadRequest, map[string]interface{}{
+				"message": ve.Message,
+				"errors":  ve.Errors,
+			})
+			return
+		}
+		if service.IsNotFound(err) {
+			RespondWithError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-
-	// create the mount paths with random strategy
-	opts := tool.CreateRunOptions{
-		Name:       payload.ToolName,
-		Image:      payload.DockerImage,
-		Parameters: payload.Parameters,
-		Datasets:   payload.DataPaths,
-	}
-	runData, err := tool.CreateToolRun(r.Context(), "_random", opts, user_id)
+	DB := getService().DB
+	runData, err := DB.GetRun(r.Context(), db.GetRunParams{ID: runTool.ID, UserID: user_id})
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	RespondWithJSON(w, http.StatusCreated, runData)

@@ -1,10 +1,12 @@
 package api
 
 import (
-	"fmt"
+	"bytes"
+	"encoding/base64"
 	"net/http"
 
 	"github.com/hydrocode-de/gorun/internal/files"
+	"github.com/hydrocode-de/gorun/internal/service"
 	"github.com/hydrocode-de/gorun/internal/tool"
 )
 
@@ -14,9 +16,16 @@ type ListRunResultsResponse struct {
 }
 
 func ListRunResults(w http.ResponseWriter, r *http.Request, tool tool.Tool) {
-	results, err := tool.ListResults()
+	userID := r.Header.Get("X-User-ID")
+	svc := getService()
+	results, err := svc.ListRunResults(r.Context(), userID, tool.ID)
 	if err != nil {
+		if service.IsUnauthorized(err) {
+			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
 	RespondWithJSON(w, http.StatusOK, ListRunResultsResponse{
@@ -26,14 +35,30 @@ func ListRunResults(w http.ResponseWriter, r *http.Request, tool tool.Tool) {
 }
 
 func GetResultFile(w http.ResponseWriter, r *http.Request, tool tool.Tool) {
-	//filename := r.URL.Query().Get("filename")
 	filename := r.PathValue("filename")
-
-	info, err := tool.WriteResultFile(filename, w)
+	userID := r.Header.Get("X-User-ID")
+	svc := getService()
+	result, err := svc.GetResultFile(r.Context(), userID, tool.ID, filename)
 	if err != nil {
+		if service.IsUnauthorized(err) {
+			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 
-	w.Header().Set("Content-Type", info.MimeType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", info.Filename))
+	w.Header().Set("Content-Type", result.Meta.MimeType)
+	w.Header().Set("Content-Disposition", "attachment; filename="+result.Meta.Filename)
+	w.Header().Set("X-Result-Path", result.Meta.FullPath)
+	_, _ = bytes.NewBuffer(result.Content).WriteTo(w)
+}
+
+func encodeResultAsJSONResponse(w http.ResponseWriter, result service.ResultFileContent) {
+	RespondWithJSON(w, http.StatusOK, map[string]interface{}{
+		"filename":       result.Meta.Filename,
+		"mime_type":      result.Meta.MimeType,
+		"path":           result.Meta.FullPath,
+		"content_base64": base64.StdEncoding.EncodeToString(result.Content),
+	})
 }

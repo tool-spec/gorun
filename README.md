@@ -115,4 +115,43 @@ curl http://localhost:8080/api/jobs/{job_id} \
 - Regularly backup your data directory
 - Use HTTPS in production
 
+## MCP Server (MVP)
+
+GoRun includes an MCP server with `stdio` and HTTP transports.
+
+### Start MCP server
+
+```bash
+# default transport: stdio
+gorun mcp serve
+
+# explicit transport
+gorun mcp serve --transport stdio
+gorun mcp serve --transport http --mcp-http-addr 127.0.0.1:8091
+gorun mcp serve --transport both --mcp-http-addr 127.0.0.1:8091
+```
+
+### MCP HTTP auth
+
+- Auth is required by default (`Authorization: Bearer <jwt>`)
+- To disable auth for local development only:
+
+```bash
+gorun mcp serve --transport http --mcp-http-no-auth
+```
+
+### Supported MCP tools
+
+- `run_tool`: validate + create + start in one call
+- `get_run`
+- `list_run_results`
+- `get_run_result_file`
+- `list_specs`
+- `get_spec`
+
+### Supported MCP resources
+
+- `spec://{toolSlug}`
+- `run://{id}/status`
+- `run://{id}/results-index`
 

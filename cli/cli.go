@@ -87,6 +87,11 @@ func initApplicationConfig() {
 	viper.SetDefault("max_upload_size", 1024*1024*1024*2) // 2GB
 	viper.SetDefault("max_temp_age", 12*time.Hour)
 	viper.SetDefault("secret", "")
+	viper.SetDefault("mcp.enabled", false)
+	viper.SetDefault("mcp.transport", "stdio")
+	viper.SetDefault("mcp.http.addr", "127.0.0.1:8091")
+	viper.SetDefault("mcp.http.auth_required", true)
+	viper.SetDefault("mcp.http.insecure_no_auth", false)
 
 	c := &cache.Cache{}
 	c.Reset()

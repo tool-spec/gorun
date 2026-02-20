@@ -1,15 +1,13 @@
 package api
 
 import (
-	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 
 	"github.com/hydrocode-de/gorun/internal/db"
+	"github.com/hydrocode-de/gorun/internal/service"
 	"github.com/hydrocode-de/gorun/internal/tool"
 	"github.com/spf13/viper"
 )
@@ -116,30 +114,18 @@ func DeleteRun(w http.ResponseWriter, r *http.Request, tool tool.Tool) {
 
 func GetRunStatus(w http.ResponseWriter, r *http.Request, run tool.Tool) {
 	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		RespondWithError(w, http.StatusUnauthorized, "User ID is required")
-		return
-	}
-	DB := viper.Get("db").(*db.Queries)
-
-	dbRun, err := DB.GetRun(r.Context(), db.GetRunParams{
-		ID:     run.ID,
-		UserID: userID,
-	})
+	svc := getService()
+	detail, err := svc.GetRunDetail(r.Context(), userID, run.ID)
 	if err != nil {
+		if service.IsUnauthorized(err) {
+			RespondWithError(w, http.StatusUnauthorized, err.Error())
+			return
+		}
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 
-	resp := RunDetailResponse{Tool: run}
-	if dbRun.GotapMetadata.Valid {
-		var metadata interface{}
-		if err := json.Unmarshal([]byte(dbRun.GotapMetadata.String), &metadata); err != nil {
-			log.Printf("failed parsing gotap metadata for run %d: %v", run.ID, err)
-		} else {
-			resp.GotapMetadata = metadata
-		}
-	}
+	resp := RunDetailResponse{Tool: detail.Tool, GotapMetadata: detail.GotapMetadata}
 
 	RespondWithJSON(w, http.StatusOK, resp)
 }
@@ -150,26 +136,11 @@ func HandleRunStart(w http.ResponseWriter, r *http.Request, run tool.Tool) {
 		RespondWithError(w, http.StatusUnauthorized, "User ID is required")
 		return
 	}
-	DB := viper.Get("db").(*db.Queries)
-
-	opt := tool.RunToolOptions{
-		DB:   DB,
-		Tool: run,
-		Env:  []string{},
-		// Cmd:  []string{},
-		UserId: user_id,
-	}
-
-	go tool.RunTool(context.Background(), opt)
-
-	// wait a few miliseconds to make sure the container is started
-	time.Sleep(time.Millisecond * 100)
-	started, err := DB.GetRun(r.Context(), db.GetRunParams{
-		ID:     run.ID,
-		UserID: user_id,
-	})
+	svc := getService()
+	started, err := svc.StartRun(r.Context(), user_id, run)
 	if err != nil {
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
 	RespondWithJSON(w, http.StatusProcessing, started)
 }
