@@ -12,18 +12,17 @@ import (
 )
 
 func ProbeGotap(ctx context.Context, c *client.Client, imageName string) (string, bool, error) {
-	stdout, _, exitCode, err := runContainerCommand(ctx, c, imageName, []string{"sh", "-lc"}, []string{"command -v gotap || which gotap"})
+	stdout, _, exitCode, err := runContainerCommand(ctx, c, imageName, []string{"gotap"}, []string{"-v"})
 	if err != nil {
 		return "", false, err
 	}
 	if exitCode != 0 {
 		return "", false, nil
 	}
-	gotapPath := strings.TrimSpace(stdout)
-	if gotapPath == "" {
+	if strings.TrimSpace(stdout) == "" {
 		return "", false, nil
 	}
-	return gotapPath, true, nil
+	return "gotap", true, nil
 }
 
 func runContainerCommand(ctx context.Context, c *client.Client, imageName string, entrypoint []string, cmd []string) (string, string, int64, error) {
