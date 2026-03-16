@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { page } from "$app/state";
     import moment from "moment";
     import type { PageProps } from "./$types";
     import { bytesToSize } from "$lib/helper";
@@ -7,6 +8,7 @@
     let { data }: PageProps = $props();
     let run = data.run;
     let files = data.files;
+    let initialTab = $derived((page.url.searchParams.get('tab') ?? 'overview') as 'overview' | 'outputs' | 'logs' | 'raw');
     $inspect(data);
 
 </script>
@@ -43,12 +45,16 @@
             <span>Finished {moment(run.finished_at).fromNow()}</span>
             <span>{files.length} results ({bytesToSize(files.map(f => f.size).reduce((a, b) => a + b, 0))})</span> 
         </div>
-        <FinishedRun {run} {files} />
+        <FinishedRun {run} {files} {initialTab} />
     {:else if run.status === 'errored'}
-        <div class="mt-2 text-sm text-gray-600">
-            Errored {moment(run.finished_at).fromNow()}
+        <div class="flex flex-row justify-between mt-2 text-sm text-gray-600">
+            <span>Errored {moment(run.finished_at).fromNow()}</span>
+            <span>{files.length} captured files ({bytesToSize(files.map(f => f.size).reduce((a, b) => a + b, 0))})</span>
         </div>
         <p class="mt-2 text-sm text-red-500">{run.error_message}</p>
+        <div class="mt-4">
+            <FinishedRun {run} {files} {initialTab} />
+        </div>
     {:else if run.status === 'pending'}
         <button 
             disabled

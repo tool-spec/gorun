@@ -64,6 +64,7 @@ func CreateServer() (*http.ServeMux, error) {
 	mux.HandleFunc("DELETE /runs/{id}", HandleApiKey(RunMiddleware(DeleteRun)))
 	mux.HandleFunc("POST /runs/{id}/start", HandleApiKey(RunMiddleware(HandleRunStart)))
 	mux.HandleFunc("GET /runs/{id}/results", HandleApiKey(RunMiddleware(ListRunResults)))
+	mux.HandleFunc("GET /runs/{id}/results/{filename}/preview", HandleApiKey(RunMiddleware(PreviewResultFile)))
 	mux.HandleFunc("GET /runs/{id}/results/{filename}", HandleApiKey(RunMiddleware(GetResultFile)))
 	mux.HandleFunc("POST /files", HandleApiKey(HandleFileUpload))
 	mux.HandleFunc("GET /files", HandleApiKey(FindFile))

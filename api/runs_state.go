@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hydrocode-de/gorun/internal/db"
@@ -15,14 +16,78 @@ import (
 )
 
 type RunsResponse struct {
-	Count  int         `json:"count"`
-	Status string      `json:"status"`
-	Runs   []tool.Tool `json:"runs"`
+	Count  int           `json:"count"`
+	Status string        `json:"status"`
+	Runs   []RunListItem `json:"runs"`
 }
 
 type RunDetailResponse struct {
 	tool.Tool
 	GotapMetadata interface{} `json:"gotap_metadata,omitempty"`
+}
+
+type RunResultSummary struct {
+	ArtifactCount int   `json:"artifact_count"`
+	LogCount      int   `json:"log_count"`
+	InternalCount int   `json:"internal_count"`
+	MetadataCount int   `json:"metadata_count"`
+	TotalSize     int64 `json:"total_size"`
+}
+
+type RunListItem struct {
+	tool.Tool
+	GotapMetadata interface{}       `json:"gotap_metadata,omitempty"`
+	ResultSummary *RunResultSummary `json:"result_summary,omitempty"`
+}
+
+func classifyResultFile(name string) string {
+	switch name {
+	case "_metadata.json":
+		return "metadata"
+	case "STDOUT.log", "STDERR.log":
+		return "log"
+	}
+	if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") {
+		return "internal"
+	}
+	return "artifact"
+}
+
+func summarizeResults(run tool.Tool) *RunResultSummary {
+	results, err := run.ListResults()
+	if err != nil {
+		return nil
+	}
+
+	summary := &RunResultSummary{}
+	for _, result := range results {
+		switch classifyResultFile(result.Name) {
+		case "artifact":
+			summary.ArtifactCount++
+		case "log":
+			summary.LogCount++
+		case "metadata":
+			summary.MetadataCount++
+		case "internal":
+			summary.InternalCount++
+		}
+		summary.TotalSize += result.Size
+	}
+
+	return summary
+}
+
+func appendMetadataFields(run db.Run, item *RunListItem) {
+	if !run.GotapMetadata.Valid {
+		return
+	}
+
+	var metadata interface{}
+	if err := json.Unmarshal([]byte(run.GotapMetadata.String), &metadata); err != nil {
+		log.Printf("failed parsing gotap metadata for run %d: %v", run.ID, err)
+		return
+	}
+	item.GotapMetadata = metadata
 }
 
 func GetAllRuns(w http.ResponseWriter, r *http.Request) {
@@ -65,14 +130,17 @@ func GetAllRuns(w http.ResponseWriter, r *http.Request) {
 		RespondWithError(w, http.StatusInternalServerError, err.Error())
 	}
 
-	var toolRuns []tool.Tool
-	for _, run := range runs {
-		toolRun, err := tool.FromDBRun(run)
+	var toolRuns []RunListItem
+	for _, dbRun := range runs {
+		toolRun, err := tool.FromDBRun(dbRun)
 		if err != nil {
 			log.Printf("Error while loading tool run: %s", err)
 			continue
 		}
-		toolRuns = append(toolRuns, toolRun)
+		item := RunListItem{Tool: toolRun}
+		appendMetadataFields(dbRun, &item)
+		item.ResultSummary = summarizeResults(toolRun)
+		toolRuns = append(toolRuns, item)
 	}
 
 	RespondWithJSON(w, http.StatusOK, RunsResponse{
