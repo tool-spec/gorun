@@ -38,7 +38,7 @@ docker run -d \
   -e GORUN_MOUNT_PATH=/data/gorun/mounts \
   -e GORUN_DB=/data/gorun/gorun.db \
   --name gorun \
-  hydrocode-de/gorun:latest
+  tool-spec/gorun:latest
 ```
 
 ## Environment Variables

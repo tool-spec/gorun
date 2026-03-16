@@ -1,0 +1,9 @@
+./cli.go
+./credentials.go
+./files.go
+./inspect.go
+./mcp.go
+./runs.go
+./serve.go
+./tools.go
+./users.go

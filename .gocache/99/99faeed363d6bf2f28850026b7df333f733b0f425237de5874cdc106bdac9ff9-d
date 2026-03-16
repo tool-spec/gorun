@@ -1,0 +1,5 @@
+./auth.sql.go
+./db.go
+./models.go
+./runs.sql.go
+./users.sql.go
