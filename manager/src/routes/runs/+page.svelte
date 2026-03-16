@@ -2,8 +2,10 @@
     import moment from 'moment';
     import type { RunState } from "$lib/types/RunState";
     import { page } from '$app/state';
-    import { goto, invalidate, invalidateAll, replaceState } from '$app/navigation';
+    import { goto, invalidateAll } from '$app/navigation';
     import { config } from '$lib/state.svelte.js';
+    import { authorizedFetch } from '$lib/auth.svelte';
+    import { bytesToSize } from '$lib/helper';
 
     let {data} = $props();
 
@@ -35,11 +37,8 @@
 
     async function onStart(runId: number) {
         const runUrl = `${config.apiServer}/runs/${runId}/start`;
-        const res = await fetch(runUrl, { 
-            method: 'POST',
-            headers: {
-                'X-User-ID': config.auth.user.id
-            }
+        const res = await authorizedFetch(runUrl, { 
+            method: 'POST'
         });
         const data = await res.json();
         $inspect(data);
@@ -48,11 +47,8 @@
 
     async function onDelete(runId: number) {
         const runUrl = `${config.apiServer}/runs/${runId}`;
-        const res = await fetch(runUrl, { 
-            method: 'DELETE',
-            headers: {
-                'X-User-ID': config.auth.user.id
-            }
+        const res = await authorizedFetch(runUrl, { 
+            method: 'DELETE'
         });
         const data = await res.json();
         console.log(data.message);
@@ -91,6 +87,9 @@
                     Finished
                 </th>
                 <th scope="col" class="px-6 py-3 font-semibold">
+                    Outputs
+                </th>
+                <th scope="col" class="px-6 py-3 font-semibold">
                     Actions
                 </th>
             </tr>
@@ -111,6 +110,32 @@
                         {run.status === 'finished' ? moment(run.finished_at).fromNow() : null}
                         {run.status === 'errored' ? 'Errored' : null}
                     </td>
+                    <td class="px-6 py-4">
+                        {#if run.result_summary}
+                            <div class="flex flex-wrap gap-2">
+                                <span class="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
+                                    {run.result_summary.artifact_count} artifacts
+                                </span>
+                                {#if run.result_summary.log_count > 0}
+                                    <span class="rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-700">
+                                        {run.result_summary.log_count} logs
+                                    </span>
+                                {/if}
+                                {#if run.gotap_metadata}
+                                    <span class="rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-700">
+                                        gotap
+                                    </span>
+                                {/if}
+                                {#if run.result_summary.total_size > 0}
+                                    <span class="rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-700">
+                                        {bytesToSize(run.result_summary.total_size)}
+                                    </span>
+                                {/if}
+                            </div>
+                        {:else}
+                            <span class="text-xs text-gray-500">No output summary</span>
+                        {/if}
+                    </td>
                     <td class="px-6 py-4 flex gap-2">
                         {#if run.status === 'running'}
                             Running...
@@ -129,16 +154,24 @@
                         </button>
                         {/if}
                         {#if run.status === 'finished'}
-                        <button
-                            disabled
-                            class="text-gray-200 hover:cursor-not-allowed" 
-                            title="Download" 
-                            aria-label="Download Result"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                            </svg>
-                        </button>
+                            <a
+                                href={`/manager/runs/${run.id}?tab=outputs`}
+                                class="text-blue-600 hover:text-blue-800"
+                                title="Open results"
+                                aria-label="Open Result"
+                            >
+                                Open results
+                            </a>
+                        {/if}
+                        {#if run.status === 'errored' && (run.result_summary?.log_count ?? 0) > 0}
+                            <a
+                                href={`/manager/runs/${run.id}?tab=logs`}
+                                class="text-amber-700 hover:text-amber-900"
+                                title="View error logs"
+                                aria-label="View error logs"
+                            >
+                                View error
+                            </a>
                         {/if}
                         {#if run.status !== 'running'}
                         <button 

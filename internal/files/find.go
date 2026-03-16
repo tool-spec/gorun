@@ -37,10 +37,11 @@ func ReadDir(dirname string, recursive bool, toolBasePath string) ([]ResultFile,
 			abs := path.Join(dirname, file.Name())
 			rel, _ := filepath.Rel(toolBasePath, abs)
 			result = append(result, ResultFile{
-				Name:    filepath.Base(file.Name()),
-				RelPath: rel,
-				AbsPath: abs,
-				Size:    info.Size(),
+				Name:         filepath.Base(file.Name()),
+				RelPath:      rel,
+				AbsPath:      abs,
+				Size:         info.Size(),
+				LastModified: info.ModTime(),
 			})
 		}
 	}
