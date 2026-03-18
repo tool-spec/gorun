@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { authorizedFetch } from "$lib/auth.svelte";
     import { config } from "$lib/state.svelte";
     import type { ResultFile } from "$lib/types/ResultFile";
     import type { RemoteFile, TempFile } from "$lib/types/TempFile";
@@ -53,11 +54,8 @@
         //  POST the file to the server using multipart formdata
         const formData = new FormData()
         formData.append('file', file)
-        fetch(`${config.apiServer}/files`, {
+        authorizedFetch(`${config.apiServer}/files`, {
             method: 'POST',
-            headers: {
-                'X-User-ID': config.auth.user.id
-            },
             body: formData
         })
         .then(res => res.json())

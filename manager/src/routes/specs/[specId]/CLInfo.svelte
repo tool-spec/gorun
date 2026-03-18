@@ -25,11 +25,17 @@
 
     let {id, name, image, parameterValues, dataValues}: CliProps = $props();
 
+    let payloadData = $derived(
+        Object.fromEntries(
+            Object.entries(dataValues).map(([key, value]) => [key, value?.path])
+        )
+    );
+
     let payload = $derived({
         name: name,
         docker_image: image,
         parameters: parameterValues,
-        data: dataValues,
+        data: payloadData,
     })
 
     let bashCode = $derived(`run_id=$(curl -X POST -H "Content-Type: application/json" -d '${JSON.stringify(payload).replace(/'/g, "'\\''")}' ${config.apiServer}/runs | jq -r '.id')
@@ -46,7 +52,7 @@ payload = {
 response = httpx.post("${config.apiServer}/runs", json=payload).json()
 run_id = response.get('id')
 if run_id:
-    run_data = httpx.get(f"{config.apiServer}/runs/{run_id}/start").json()
+    run_data = httpx.post(f"{config.apiServer}/runs/{run_id}/start").json()
     print(run_data['status'])
 else:
     print("Failed to create tool run")

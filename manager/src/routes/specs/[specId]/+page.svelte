@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { authorizedFetch } from "$lib/auth.svelte";
     import DataInput from "$lib/components/DataInput.svelte";
     import ParameterInput from "$lib/components/ParameterInput.svelte";
     import type { RemoteFile } from "$lib/types/TempFile";
@@ -18,6 +19,9 @@
     $inspect(dataValues);
 
     let currentTab: 'parameters' | 'cli' | 'citation' = $state('parameters');
+    let submitError = $state('');
+    let submitValidationErrors = $state<string[]>([]);
+    let submitPending = $state(false);
 
     function updateParameterValues(name: string, value: any) {
         parameterValues = {...parameterValues, [name]: value};
@@ -42,10 +46,13 @@
     let dockerImage = $derived(spec.id.split('::')[0]);
     let toolName = $derived(spec.id.split('::')[1]);
 
-    function startRun() {
+    async function startRun() {
+        submitError = '';
+        submitValidationErrors = [];
         const [dockerImage, toolName, ...o] = spec.id.split('::');
         if (!dockerImage || !toolName || spec.name !== toolName || o.length > 0) {
             console.error(`Invalid tool slug: ${spec.id}`) 
+            submitError = `Invalid tool slug: ${spec.id}`;
             return 
         }
 
@@ -56,19 +63,55 @@
             data: Object.fromEntries(Object.entries(dataValues).map(([name, conf]) => ([name, conf.path])))
         })
 
-        fetch(`${config.apiServer}/runs`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        })
-        .then(res => res.json())
-        .then(response => { 
-            console.log(response);
-            goto('/manager/runs');
-        })
+        submitPending = true;
+        try {
+            const response = await authorizedFetch(`${config.apiServer}/runs`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const responseText = await response.text();
+            let responseBody: Record<string, unknown> | null = null;
+            if (responseText) {
+                try {
+                    responseBody = JSON.parse(responseText) as Record<string, unknown>;
+                } catch (_error) {
+                    responseBody = null;
+                }
+            }
+
+            if (!response.ok) {
+                const message = typeof responseBody?.message === 'string'
+                    ? responseBody.message
+                    : `Failed to create run (${response.status})`;
+                submitError = message;
+                if (Array.isArray(responseBody?.errors)) {
+                    submitValidationErrors = responseBody.errors
+                        .map((entry) => typeof entry?.message === 'string' ? entry.message : JSON.stringify(entry))
+                        .filter((entry): entry is string => Boolean(entry));
+                }
+                console.error("Failed to create run", response.status, responseBody ?? responseText);
+                return;
+            }
+
+            const runId = responseBody?.id;
+            if (typeof runId === 'number') {
+                goto(`/manager/runs/${runId}`);
+                return;
+            }
+
+            submitError = 'Run was created, but the server did not return a valid run id.';
+            console.error("Unexpected create run response", responseBody ?? responseText);
+        } catch (error) {
+            submitError = error instanceof Error ? error.message : 'Failed to create run';
+            console.error("Failed to create run", error);
+        } finally {
+            submitPending = false;
+        }
     }
 </script>
 
@@ -156,9 +199,19 @@
 
 </div>
 {#if allValid}
-<button class="w-full px-3 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 transition-colors cursor-pointer" onclick={startRun}>
-    Create
+{#if submitError}
+<div class="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+    <div>{submitError}</div>
+    {#if submitValidationErrors.length > 0}
+    <ul class="mt-2 list-disc pl-5">
+        {#each submitValidationErrors as validationError}
+        <li>{validationError}</li>
+        {/each}
+    </ul>
+    {/if}
+</div>
+{/if}
+<button class="w-full px-3 py-2 bg-green-500 text-white rounded-lg shadow-md hover:bg-green-600 transition-colors cursor-pointer disabled:cursor-not-allowed disabled:bg-green-300" onclick={startRun} disabled={submitPending}>
+    {submitPending ? 'Creating...' : 'Create'}
 </button>
 {/if}
-
-

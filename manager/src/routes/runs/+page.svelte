@@ -15,9 +15,39 @@
     });
     $inspect(runs);
 
+    let autoRefresh = $state(true);
+    let refreshing = $state(false);
+
     // refresh 
     async function refresh() {
-        invalidateAll();
+        if (refreshing) {
+            return;
+        }
+        refreshing = true;
+        try {
+            await invalidateAll();
+        } finally {
+            refreshing = false;
+        }
+    }
+
+    function onRefreshToggleClick(event: MouseEvent) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input')) {
+            return;
+        }
+        void refresh();
+    }
+
+    function onRefreshToggleKeydown(event: KeyboardEvent) {
+        const target = event.target as HTMLElement | null;
+        if (target?.closest('input')) {
+            return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            void refresh();
+        }
     }
 
     // Define available status options
@@ -55,11 +85,40 @@
 
         await refresh();
     }
+
+    $effect(() => {
+        if (!autoRefresh) {
+            return;
+        }
+
+        const intervalId = window.setInterval(() => {
+            void refresh();
+        }, 5000);
+
+        return () => {
+            window.clearInterval(intervalId);
+        };
+    });
 </script>
 
-<button onclick={refresh} class="text-blue-600 hover:text-blue-800 hover:cursor-pointer" title="Refresh" aria-label="Refresh">
-    Refresh
-</button>
+<div
+    role="button"
+    tabindex="0"
+    class="mb-3 inline-flex items-center gap-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 shadow-sm hover:bg-gray-50 hover:cursor-pointer"
+    title="Refresh runs"
+    aria-label="Refresh runs"
+    onclick={onRefreshToggleClick}
+    onkeydown={onRefreshToggleKeydown}
+>
+    <input
+        type="checkbox"
+        bind:checked={autoRefresh}
+        class="rounded border-gray-300"
+        aria-label="Enable automatic refresh"
+    />
+    <span class="font-medium text-gray-900">{refreshing ? 'Refreshing...' : 'Refresh every 5 seconds'}</span>
+    <span class="text-xs text-gray-500">click to refresh now</span>
+</div>
 <div class="relative overflow-x-auto shadow-md sm:rounded-lg">
     <table class="w-full text-sm text-left">
         <thead class="text-xs uppercase bg-gray-100">

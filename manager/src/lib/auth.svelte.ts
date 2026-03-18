@@ -75,13 +75,11 @@ export async function initializeAuth() {
 
 export async function authorizedFetch(url: string, options?: RequestInit): Promise<Response> {
     await refreshToken()
-    if (!config.auth.access_token) {
-        return Promise.reject("Cannot create a new access token.");
-    }
 
     const headers = new Headers(options?.headers);
-    headers.set("Authorization", `Bearer ${config.auth.access_token}`);
+    if (config.auth.access_token) {
+        headers.set("Authorization", `Bearer ${config.auth.access_token}`);
+    }
 
     return fetch(url, { ...options, headers });
 }
-

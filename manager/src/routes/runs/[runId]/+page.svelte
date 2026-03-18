@@ -10,7 +10,6 @@
     let files = data.files;
     let initialTab = $derived((page.url.searchParams.get('tab') ?? 'overview') as 'overview' | 'outputs' | 'logs' | 'raw');
     $inspect(data);
-
 </script>
 
 {#if run}
