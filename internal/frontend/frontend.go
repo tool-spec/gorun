@@ -5,8 +5,8 @@ import (
 	"io/fs"
 )
 
-//go:embed manager/**/*
-//go:embed manager/*
+//go:embed all:manager/**/*
+//go:embed all:manager/*
 var manager embed.FS
 
 func GetManager() fs.FS {
