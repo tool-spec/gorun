@@ -41,6 +41,10 @@
             return `${authors[0]} et al. (${repo})`;
         }
     }
+
+    function getSpecHref(specId: string): string {
+        return `/manager/specs/${encodeURIComponent(specId)}`;
+    }
 </script>
 
 <div class="p-4">
@@ -54,10 +58,10 @@
                 class="block cursor-pointer" 
                 role="button"
                 tabindex="0"
-                onclick={() => goto(`/manager/specs/${spec.id}`)}
+                onclick={() => goto(getSpecHref(spec.id))}
                 onkeydown={(e: KeyboardEvent) => {
                     if (e.key === 'Enter') {
-                        goto(`/manager/specs/${spec.id}`);
+                        goto(getSpecHref(spec.id));
                     }
                 }}
             >

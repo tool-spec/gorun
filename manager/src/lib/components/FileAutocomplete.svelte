@@ -1,4 +1,5 @@
 <script lang="ts">
+    import { authorizedFetch } from "$lib/auth.svelte";
     import { bytesToSize } from "$lib/helper";
 import { config } from "$lib/state.svelte";
     import type { ResultFile } from "$lib/types/ResultFile";
@@ -26,11 +27,7 @@ import { config } from "$lib/state.svelte";
     async function query() {
         if (pattern.length !== 0 && !loading) {
             loading = true;
-            const res = await fetch(`${config.apiServer}/files?pattern=${q}&target=both`, {
-                headers: {
-                    'X-User-ID': config.auth.user.id
-                }
-            });
+            const res = await authorizedFetch(`${config.apiServer}/files?pattern=${q}&target=both`);
             const data = await res.json();
 
             // sort by last modified

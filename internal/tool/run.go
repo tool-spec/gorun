@@ -95,7 +95,7 @@ func RunTool(ctx context.Context, opt RunToolOptions) error {
 		}
 		if gotapFound {
 			config.Entrypoint = []string{gotapPath}
-			config.Cmd = []string{"run", tool.Name, "--input-file", "/in/inputs.json", "--spec-file", "/src/tool.yml", "--output-folder", "/out"}
+			config.Cmd = []string{"run", tool.Name, "--input-file", "/in/inputs.json", "--spec-file", "/src/tool.yml"}
 			runMode = "gotap"
 			fmt.Printf("detected gotap shim at %s\n", gotapPath)
 		}

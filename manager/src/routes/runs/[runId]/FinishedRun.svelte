@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { bytesToSize } from "$lib/helper";
+    import { bytesToSize, formatDurationFromNanoseconds, formatPercentFromPermille, titleCase } from "$lib/helper";
     import { authorizedFetch } from "$lib/auth.svelte";
     import { config } from "$lib/state.svelte";
     import { groupResultFiles, resultPathParam, sortResultFiles, type PreviewResponse } from "$lib/results";
@@ -78,6 +78,44 @@
         if (Array.isArray(value)) return value.length === 0 ? '[]' : `${value.length} item${value.length === 1 ? '' : 's'}`;
         if (typeof value === 'object') return `${Object.keys(value as Record<string, unknown>).length} field${Object.keys(value as Record<string, unknown>).length === 1 ? '' : 's'}`;
         return String(value);
+    }
+
+    function formatMetadataLabel(key: string): string {
+        const normalizedKey = key.toUpperCase();
+
+        if (normalizedKey.endsWith('_PERMILLE')) {
+            return `${titleCase(key.replace(/_permille$/i, '').replaceAll('_', ' '))} (%)`;
+        }
+        if (normalizedKey.endsWith('_BYTES')) {
+            return `${titleCase(key.replace(/_bytes$/i, '').replaceAll('_', ' '))}`;
+        }
+        if (normalizedKey.endsWith('_TIME')) {
+            return `${titleCase(key.replace(/_time$/i, '').replaceAll('_', ' '))} Time`;
+        }
+        return titleCase(key.replaceAll('_', ' '));
+    }
+
+    function formatMetadataValue(key: string, value: unknown): string {
+        const normalizedKey = key.toUpperCase();
+        const numericValue = typeof value === 'number'
+            ? value
+            : typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))
+                ? Number(value)
+                : null;
+
+        if (normalizedKey.endsWith('_PERMILLE') && numericValue !== null) {
+            return formatPercentFromPermille(numericValue);
+        }
+
+        if (normalizedKey.endsWith('_BYTES') && numericValue !== null) {
+            return bytesToSize(numericValue);
+        }
+
+        if (normalizedKey.endsWith('_TIME') && numericValue !== null) {
+            return formatDurationFromNanoseconds(numericValue);
+        }
+
+        return summarizeValue(value);
     }
 
     function getMetadataEntries(metadata: unknown): Array<[string, unknown]> {
@@ -260,8 +298,8 @@
                         <div class="mt-4 grid gap-3 md:grid-cols-2">
                             {#each metadataEntries as [key, value]}
                                 <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                                    <div class="text-xs uppercase text-gray-500">{key}</div>
-                                    <div class="mt-2 text-sm font-medium text-gray-900 break-words">{summarizeValue(value)}</div>
+                                    <div class="text-xs text-gray-500">{formatMetadataLabel(key)}</div>
+                                    <div class="mt-2 text-sm font-medium text-gray-900 break-words">{formatMetadataValue(key, value)}</div>
                                 </div>
                             {/each}
                         </div>
