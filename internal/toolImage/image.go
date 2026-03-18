@@ -110,7 +110,7 @@ func ReadAllTools(ctx context.Context, cache *cache.Cache, verbose bool) ([]stri
 		}
 	}
 
-	cache.Initialised = true
+	cache.SetInitialised(true)
 	return allTools, nil
 }
 

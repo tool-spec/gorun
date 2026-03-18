@@ -76,7 +76,7 @@ func startBackgroundTasksAndWait(ctx context.Context) {
 	}
 
 	// Wait for cache to be marked as initialized
-	for !cacheInstance.Initialised {
+	for !cacheInstance.IsInitialised() {
 		log.Println("Waiting for cache initialization to complete...")
 		time.Sleep(time.Second)
 	}

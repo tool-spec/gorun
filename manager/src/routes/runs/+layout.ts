@@ -1,5 +1,5 @@
-import { goto } from "$app/navigation";
-import { refreshToken } from "$lib/auth.svelte";
+import { redirect } from "@sveltejs/kit";
+import { authorizedFetch } from "$lib/auth.svelte";
 import { config } from "$lib/state.svelte";
 import type { RunState } from "$lib/types/RunState";
 import type { LayoutLoad } from "./$types";
@@ -14,19 +14,15 @@ export const load: LayoutLoad = async ({ url, fetch }): Promise<{runs: RunState[
         backendUrl += `?status=${status}`
     }
     console.log(backendUrl);
-    await refreshToken();
-    if (!config.auth.access_token) {
-        goto('/manager/login');
-    }
-
-    const headers = new Headers();
-    headers.set("Authorization", `Bearer ${config.auth.access_token}`);
-    headers.set("Content-Type", "application/json");
-
-    const res = await fetch(backendUrl, {
+    const res = await authorizedFetch(backendUrl, {
         method: 'GET',
-        headers: headers
+        headers: {
+            "Content-Type": "application/json"
+        }
     })
+    if (res.status === 401) {
+        throw redirect(307, '/manager/login');
+    }
     const data = await res.json()
     const runs = data.runs as RunState[]
 

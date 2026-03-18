@@ -14,6 +14,18 @@
 //    let value: string | number | boolean | Date | null | {[key: string]: any} | any[] = $state(parameter.default ? parameter.default : null);
     let showDescription = $state(false);
 
+    function getNumericValue(input: HTMLInputElement): number | null {
+        if (input.value === '') {
+            return null;
+        }
+
+        if (parameter.type === 'integer') {
+            return Number.parseInt(input.value, 10);
+        }
+
+        return Number.parseFloat(input.value);
+    }
+
 </script>
 
 <style>
@@ -64,7 +76,7 @@
                 <input 
                     type="number" 
                     bind:value 
-                    oninput={e => oninput((e.target as HTMLInputElement)!.value)}
+                    oninput={e => oninput(getNumericValue((e.target as HTMLInputElement)!))}
                     class="w-full px-3 py-1.5 border border-gray-200 rounded-md shadow-sm focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500"
                 >
             {:else if parameter.type === 'boolean'}
