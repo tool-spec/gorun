@@ -1,7 +1,7 @@
-FROM golang:1.23-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
-# Install Node.js, npm, and make for the build process
-RUN apk add --no-cache nodejs npm make
+# Install Node.js, npm, make, and git for the build process
+RUN apk add --no-cache nodejs npm make git
 
 WORKDIR /app
 COPY . .
